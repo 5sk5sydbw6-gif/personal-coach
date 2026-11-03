@@ -26,7 +26,7 @@ export interface PlanDay {
   exercises: PlannedExercise[];
 }
 
-export type PlanStatus = 'proposed' | 'active' | 'rejected' | 'archived';
+export type PlanStatus = 'proposed' | 'active' | 'rejected' | 'superseded';
 
 /** A weekly training plan. Each day is a workout template. */
 export interface TrainingPlan extends BaseRecord {
