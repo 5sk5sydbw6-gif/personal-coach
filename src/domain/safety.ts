@@ -1,3 +1,4 @@
+import { fmt } from './format';
 import type { FormulaSex } from './profile';
 
 /**
@@ -90,7 +91,7 @@ export function checkTargets(values: TargetValues, ctx: TargetContext): TargetCh
   const floor = calorieFloor(ctx.formulaSex);
   if (calories < floor) {
     errors.push(
-      `${calories} kcal is below the safe minimum of ${floor} kcal a day. The coach won't set targets below this.`,
+      `${fmt(calories)} kcal is below the safe minimum of ${fmt(floor)} kcal a day. The coach won't set targets below this.`,
     );
   }
 
@@ -99,7 +100,7 @@ export function checkTargets(values: TargetValues, ctx: TargetContext): TargetCh
   if (deficit > 0 && weeklyChangeKg(deficit) > maxLossKg + 0.005) {
     const maxDeficit = Math.round(dailyKcalForWeeklyChange(maxLossKg));
     errors.push(
-      `That's about ${weeklyChangeKg(deficit).toFixed(2)} kg of loss a week, more than 1% of your bodyweight (${maxLossKg.toFixed(2)} kg). Keep calories at or above ${ctx.maintenanceKcal - maxDeficit} kcal.`,
+      `That's about ${weeklyChangeKg(deficit).toFixed(2)} kg of loss a week, more than 1% of your bodyweight (${maxLossKg.toFixed(2)} kg). Keep calories at or above ${fmt(ctx.maintenanceKcal - maxDeficit)} kcal.`,
     );
   }
 
@@ -120,7 +121,7 @@ export function checkTargets(values: TargetValues, ctx: TargetContext): TargetCh
   const macroKcal = proteinG * 4 + carbsG * 4 + fatG * 9;
   if (calories > 0 && Math.abs(macroKcal - calories) / calories > 0.1) {
     warnings.push(
-      `Your macros add up to ${Math.round(macroKcal)} kcal, which doesn't match your ${calories} kcal target.`,
+      `Your macros add up to ${fmt(macroKcal)} kcal, which doesn't match your ${fmt(calories)} kcal target.`,
     );
   }
 

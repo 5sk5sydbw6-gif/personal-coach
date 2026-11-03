@@ -41,3 +41,50 @@ export function formatWeight(kg: number, unit: WeightUnit): string {
     }
   }
 }
+
+/** Parses user-typed numbers; accepts "80,5" as well as "80.5". Empty or invalid -> undefined. */
+export function parseDecimal(text: string): number | undefined {
+  const cleaned = text.trim().replace(',', '.');
+  if (cleaned === '') return undefined;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** Text shown in a weight input: one box, or two for stones + pounds. */
+export interface WeightFields {
+  main: string;
+  lb: string;
+}
+
+export function weightToFields(kg: number | undefined, unit: WeightUnit): WeightFields {
+  if (kg === undefined) return { main: '', lb: '' };
+  switch (unit) {
+    case 'kg':
+      return { main: trimZero(kg.toFixed(1)), lb: '' };
+    case 'lb':
+      return { main: trimZero(kgToLb(kg).toFixed(1)), lb: '' };
+    case 'st': {
+      const { stone, lb } = kgToStoneLb(kg);
+      return { main: String(stone), lb: trimZero(lb.toFixed(1)) };
+    }
+  }
+}
+
+/** Converts typed weight back to kg (rounded to 10 g). Undefined if the main box is empty or invalid. */
+export function fieldsToWeight(fields: WeightFields, unit: WeightUnit): number | undefined {
+  const main = parseDecimal(fields.main);
+  if (main === undefined) return undefined;
+  let kg: number;
+  if (unit === 'kg') kg = main;
+  else if (unit === 'lb') kg = lbToKg(main);
+  else {
+    const lb = fields.lb.trim() === '' ? 0 : parseDecimal(fields.lb);
+    if (lb === undefined) return undefined;
+    kg = stoneLbToKg(main, lb);
+  }
+  return Math.round(kg * 100) / 100;
+}
+
+function trimZero(s: string): string {
+  return s.endsWith('.0') ? s.slice(0, -2) : s;
+}

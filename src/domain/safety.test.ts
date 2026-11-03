@@ -16,13 +16,13 @@ describe('checkTargets', () => {
 
   it('blocks calories below the floor', () => {
     const result = checkTargets({ calories: 1400, proteinG: 160, carbsG: 100, fatG: 40 }, ctx);
-    expect(result.errors.join(' ')).toMatch(/below the safe minimum of 1500/);
+    expect(result.errors.join(' ')).toMatch(/below the safe minimum of 1,500/);
   });
 
   it('blocks a deficit faster than 1% of bodyweight per week', () => {
     // 0.8 kg/week = 880 kcal/day, so the lowest allowed is 1920
     const tooLow = checkTargets({ calories: 1800, proteinG: 160, carbsG: 150, fatG: 60 }, ctx);
-    expect(tooLow.errors.join(' ')).toMatch(/more than 1% of your bodyweight.*1920 kcal/);
+    expect(tooLow.errors.join(' ')).toMatch(/more than 1% of your bodyweight.*1,920 kcal/);
     const ok = checkTargets({ calories: 1920, proteinG: 160, carbsG: 175, fatG: 60 }, ctx);
     expect(ok.errors).toEqual([]);
   });

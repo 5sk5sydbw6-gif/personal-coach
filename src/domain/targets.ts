@@ -1,3 +1,4 @@
+import { fmt } from './format';
 import type { ActivityLevel, FormulaSex, GoalType } from './profile';
 import {
   calorieFloor,
@@ -253,11 +254,6 @@ function proteinReason(goal: GoalType): string {
     case 'general_fitness':
       return 'A solid amount for an active person.';
   }
-}
-
-/** 12345 -> "12,345" without relying on the platform's locale data. */
-export function fmt(n: number): string {
-  return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 function round1(n: number): number {

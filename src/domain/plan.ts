@@ -326,3 +326,21 @@ export function splitLabel(split: Split): string {
     ppl_upper_lower: 'push/pull/legs + upper/lower',
   }[split];
 }
+
+/**
+ * The next exercise to show when the user taps "Swap": cycles through
+ * every suitable option for the same movement, skipping ones already in
+ * the day. Undefined if there is nothing to swap to.
+ */
+export function nextAlternative(
+  exerciseId: string,
+  input: Pick<PlanInput, 'equipment' | 'injuries' | 'experience'>,
+  idsInDay: ReadonlySet<string>,
+): Exercise | undefined {
+  const options = candidatesFor(getExercise(exerciseId).pattern, input).filter(
+    (e) => e.id === exerciseId || !idsInDay.has(e.id),
+  );
+  const index = options.findIndex((e) => e.id === exerciseId);
+  const next = options[(index + 1) % options.length];
+  return next && next.id !== exerciseId ? next : undefined;
+}

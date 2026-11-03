@@ -21,6 +21,7 @@ export type MovementPattern =
 export const COMPOUND_PATTERNS: ReadonlySet<MovementPattern> = new Set([
   'squat',
   'hinge',
+  'glutes',
   'lunge',
   'horizontal_push',
   'vertical_push',

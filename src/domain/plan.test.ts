@@ -4,6 +4,7 @@ import {
   chooseSplit,
   exercisesPerSession,
   generatePlan,
+  nextAlternative,
   type PlanInput,
   prescription,
 } from './plan';
@@ -196,5 +197,25 @@ describe('alternativesFor', () => {
       experience: 'intermediate',
     }).map((e) => e.id);
     expect(withWristInjury).toEqual(['incline_db_press']);
+  });
+});
+
+describe('nextAlternative', () => {
+  const home = { equipment: 'home' as const, injuries: [], experience: 'intermediate' as const };
+
+  it('cycles through every option and back to the start', () => {
+    const seen = ['db_bench_press'];
+    for (let i = 0; i < 3; i++) {
+      seen.push(nextAlternative(seen[seen.length - 1], home, new Set())!.id);
+    }
+    expect(seen).toEqual(['db_bench_press', 'incline_db_press', 'push_up', 'db_bench_press']);
+  });
+
+  it('skips exercises already in the day', () => {
+    expect(nextAlternative('db_bench_press', home, new Set(['incline_db_press']))?.id).toBe('push_up');
+  });
+
+  it('returns undefined when there is nothing else', () => {
+    expect(nextAlternative('leg_extension', { ...home, equipment: 'gym' }, new Set())).toBeUndefined();
   });
 });

@@ -1,5 +1,6 @@
 import { checkTargets } from './safety';
-import { calculateTargets, fmt, mifflinStJeor, type TargetInput } from './targets';
+import { fmt } from './format';
+import { calculateTargets, mifflinStJeor, type TargetInput } from './targets';
 
 // Worked example, by hand:
 // BMR = 10×80 + 6.25×180 − 5×24 + 5 = 1810

@@ -1,102 +1,156 @@
-import { Stack } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { router, Stack, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
+import { getPlan, getProfile, getTargets } from '@/data/coachWorkflow';
 import { useData } from '@/data/DataProvider';
-import { getOrCreateSettings } from '@/data/settingsRepository';
-import type { Settings, WeightUnit } from '@/domain/records';
+import type { DailyTargets } from '@/domain/coach';
+import type { TrainingPlan } from '@/domain/plan';
+import type { Profile } from '@/domain/profile';
+import type { WeightUnit } from '@/domain/records';
+import { GP_NOTE } from '@/domain/safety';
 import { formatWeight } from '@/domain/units';
+import { Button } from '@/ui/Button';
+import { Card } from '@/ui/Card';
+import { SingleChoice } from '@/ui/Choice';
+import { MacroSummary } from '@/ui/MacroSummary';
+import { Notice } from '@/ui/Notice';
 import { Screen } from '@/ui/Screen';
-import { colors, spacing } from '@/ui/theme';
+import { spacing, type } from '@/ui/theme';
+import { useSettings } from '@/ui/useSettings';
 
-const UNITS: { value: WeightUnit; label: string }[] = [
+interface HomeState {
+  profile?: Profile;
+  activeTargets?: DailyTargets;
+  pendingTargets?: DailyTargets;
+  activePlan?: TrainingPlan;
+  pendingPlan?: TrainingPlan;
+}
+
+const UNIT_OPTIONS: { value: WeightUnit; label: string }[] = [
   { value: 'kg', label: 'kg' },
   { value: 'lb', label: 'lb' },
   { value: 'st', label: 'st & lb' },
 ];
 
-const EXAMPLE_WEIGHT_KG = 80;
-
-/**
- * Phase 0 placeholder. Proves the app runs and that storage persists:
- * pick a unit, refresh the page, and the choice is still selected.
- */
 export default function HomeScreen() {
   const data = useData();
-  const [settings, setSettings] = useState<Settings | null>(null);
+  const [settings, updateSettings] = useSettings();
+  const [state, setState] = useState<HomeState | null>(null);
 
-  useEffect(() => {
-    getOrCreateSettings(data.settings).then(setSettings);
-  }, [data]);
+  // Reload whenever the screen comes back into view (e.g. after onboarding).
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      (async () => {
+        const next: HomeState = {
+          profile: await getProfile(data),
+          activeTargets: await getTargets(data, 'active'),
+          pendingTargets: await getTargets(data, 'proposed'),
+          activePlan: await getPlan(data, 'active'),
+          pendingPlan: await getPlan(data, 'proposed'),
+        };
+        if (!cancelled) setState(next);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [data]),
+  );
 
-  async function chooseUnit(weightUnit: WeightUnit) {
-    if (!settings) return;
-    setSettings(await data.settings.update(settings.id, { weightUnit }));
+  if (!state || !settings) {
+    return (
+      <Screen>
+        <Stack.Screen options={{ title: 'Personal Coach' }} />
+      </Screen>
+    );
+  }
+
+  const { profile, activeTargets, pendingTargets, activePlan, pendingPlan } = state;
+
+  if (!profile) {
+    return (
+      <Screen>
+        <Stack.Screen options={{ title: 'Personal Coach' }} />
+        <Text style={type.title}>Hi, I'm your coach 👋</Text>
+        <Text style={type.body}>
+          Answer a few questions about you, your goal and how you like to train. It takes about 3
+          minutes. I'll then suggest daily calorie and macro targets and a starting training plan,
+          and explain how I worked them out.
+        </Text>
+        <Text style={type.body}>Nothing changes until you approve it.</Text>
+        <Button title="Get started" onPress={() => router.push('/onboarding')} />
+        <Text style={type.muted}>Personal Coach is for adults aged 18 and over.</Text>
+      </Screen>
+    );
   }
 
   return (
     <Screen>
       <Stack.Screen options={{ title: 'Personal Coach' }} />
-      <Text style={styles.title}>Phase 0: setup complete</Text>
-      <Text style={styles.body}>
-        The app, storage layer and tests are in place. Features start in Phase 1.
-      </Text>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Storage check</Text>
-        <Text style={styles.body}>
-          Choose a bodyweight unit, then refresh the page. Your choice should still be selected.
-        </Text>
-        <View style={styles.segmented}>
-          {UNITS.map(({ value, label }) => {
-            const selected = settings?.weightUnit === value;
-            return (
-              <Pressable
-                key={value}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                onPress={() => chooseUnit(value)}
-                style={[styles.segment, selected && styles.segmentSelected]}>
-                <Text style={[styles.segmentText, selected && styles.segmentTextSelected]}>
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        {settings && (
-          <Text style={styles.body}>
-            {EXAMPLE_WEIGHT_KG} kg shows as{' '}
-            <Text style={styles.strong}>{formatWeight(EXAMPLE_WEIGHT_KG, settings.weightUnit)}</Text>
-          </Text>
+      {(pendingTargets || pendingPlan) && (
+        <Card title="Your coach has suggestions">
+          <Text style={type.muted}>Review them to put them into effect.</Text>
+          {pendingTargets && (
+            <Button title="Review targets" onPress={() => router.push('/targets')} />
+          )}
+          {pendingPlan && <Button title="Review training plan" onPress={() => router.push('/plan')} />}
+        </Card>
+      )}
+
+      <Card title="Daily targets">
+        {activeTargets ? (
+          <>
+            <MacroSummary values={activeTargets} />
+            <Button title="See how these were worked out" variant="secondary" onPress={() => router.push('/targets')} />
+          </>
+        ) : (
+          <Text style={type.muted}>No targets yet. Accept or edit your coach's suggestion first.</Text>
         )}
-      </View>
+      </Card>
+
+      <Card title="Training plan">
+        {activePlan ? (
+          <>
+            <Text style={type.body}>{capitalise(activePlan.name)}</Text>
+            <View style={styles.days}>
+              {activePlan.days.map((day) => (
+                <Text key={day.name} style={type.muted}>
+                  {day.name}: {day.exercises.length} exercises
+                </Text>
+              ))}
+            </View>
+            <Button title="View plan" variant="secondary" onPress={() => router.push('/plan')} />
+          </>
+        ) : (
+          <Text style={type.muted}>No active plan yet.</Text>
+        )}
+      </Card>
+
+      <Card title="You">
+        <Text style={type.muted}>
+          {formatWeight(profile.weightKg, settings.weightUnit)} · {profile.heightCm} cm ·{' '}
+          {profile.daysPerWeek} training days a week
+        </Text>
+        <SingleChoice
+          label="Show bodyweight in"
+          options={UNIT_OPTIONS}
+          value={settings.weightUnit}
+          onChange={(weightUnit) => updateSettings({ weightUnit })}
+        />
+        <Button title="Redo onboarding" variant="secondary" onPress={() => router.push('/onboarding')} />
+      </Card>
+
+      <Notice>{GP_NOTE}</Notice>
     </Screen>
   );
 }
 
+function capitalise(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 const styles = StyleSheet.create({
-  title: { fontSize: 24, fontWeight: '700', color: colors.text },
-  body: { fontSize: 16, lineHeight: 22, color: colors.textMuted },
-  strong: { fontWeight: '700', color: colors.text },
-  card: {
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  cardTitle: { fontSize: 18, fontWeight: '600', color: colors.text },
-  segmented: { flexDirection: 'row', gap: spacing.sm },
-  segment: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  segmentSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
-  segmentText: { fontSize: 16, color: colors.text },
-  segmentTextSelected: { color: colors.onPrimary, fontWeight: '600' },
+  days: { gap: spacing.xs },
 });
