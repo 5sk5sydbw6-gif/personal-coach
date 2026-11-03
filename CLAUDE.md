@@ -37,14 +37,35 @@ versioned docs, don't trust memory).
 
 ```
 src/app/        Expo Router routes (screens). Thin: layout + wiring only.
-src/domain/     Pure TypeScript: record types, calculations, coach engine.
-                No React or storage imports, so it's trivially unit-testable.
-src/data/       KeyValueStore -> Repository<T> -> DataLayer, plus DataProvider/useData().
+                index (home), onboarding, targets, plan
+src/domain/     Pure TypeScript, no React or storage imports, so it's trivially unit-testable:
+  safety.ts       ALL coach safety limits (calorie floor, max loss/gain, 18+, GP/physio notes,
+                  checkTargets for manual edits). Change limits here only.
+  targets.ts      Mifflin-St Jeor -> maintenance -> goal adjustment -> macros, with explanations
+  exercises.ts    Built-in exercise library (pattern, kit, joints stressed)
+  plan.ts         Starting plan generator (split by days/week, injuries, equipment), swaps
+  coach.ts        CoachProvider interface + RuleBasedCoach; DailyTargets and CoachEvent types
+  onboarding.ts   Questionnaire answers, per-step validation, -> profile/goal records
+  profile.ts      Profile/Goal types and display labels
+  units.ts, dates.ts, format.ts   helpers
+src/data/       KeyValueStore -> Repository<T> -> DataLayer, plus DataProvider (useData/useCoach).
+  coachWorkflow.ts  Coach + storage: onboarding, accept/edit targets, accept/edit/reject plan,
+                    coach_events logging. The "never change without approval" rule lives here.
 src/services/   External APIs (Open Food Facts client - from Phase 2).
-src/ui/         Shared components (Screen = phone-width column) and theme tokens.
+src/ui/         Shared components (Screen, Button, Card, Notice, Choice, TextField, NumberField,
+                WeightField, Stepper, MacroSummary) and theme tokens.
 ```
 
 Tests live next to the code as `*.test.ts`. Import alias `@/` = `src/`.
+
+## Data model (collections)
+
+`settings`, `profiles` (one per user), `goals` (one `active`), `daily_targets`
+(`proposed` | `active` | `superseded` | `rejected`; `source` coach/manual; stores the
+safety context so edits can be re-checked), `training_plans` (days = workout templates;
+`proposed` | `active` | `rejected` | `superseded`), `coach_events` (type, provider,
+subjectId, summary, decision `pending` | `accepted` | `edited` | `rejected` | `superseded`).
+The built-in exercise library is code (`exercises.ts`), not stored; custom exercises come in Phase 3.
 
 ## Conventions
 
@@ -60,6 +81,13 @@ Tests live next to the code as `*.test.ts`. Import alias `@/` = `src/`.
 - Screens get data only via `useData()`; never import AsyncStorage in screens.
 - Colours/spacing come from `src/ui/theme.ts`. Wrap screens in `<Screen>`.
 - Planned date convention for logs: local calendar date `YYYY-MM-DD` plus a UTC timestamp.
+- The coach only proposes. Workflows in `coachWorkflow.ts` activate things on accept/edit and
+  log every proposal + decision. Every provider proposal is also run through `checkTargets`,
+  so a future AI provider can't bypass safety limits.
+- Coach methods return Promises (so an AI/server provider fits the same interface).
+- Swap the coach in one place: `DataProvider.tsx`.
+- Number inputs: use `NumberField` / `WeightField` (they keep typed text, report numbers / kg).
+- RN 0.88: ScrollView refs are typed `ScrollViewInstance`.
 
 ## Commands
 
@@ -78,28 +106,41 @@ then give the user numbered macOS steps to try it.
 
 macOS laptop, gets code via GitHub Desktop. Repo: `5sk5sydbw6-gif/personal-coach`.
 
-## Decisions agreed / proposed
+## Decisions agreed
 
 - AsyncStorage over expo-sqlite for now (sqlite web support is experimental and
   needs special headers). Can swap behind the repository interface later.
 - Ask date of birth (month/year) rather than age.
-- Calorie floor 1,200 (female formula) / 1,500 (male formula); max loss ~1% BW/week;
-  max gain ~0.5% BW/week. For sex "other", ask which formula or average the two.
-- Open Food Facts: search on button press (rate limit ~10/min); browsers can't
+- Calorie floor 1,200 (female formula) / 1,500 (male) / 1,350 (average); max loss 1% BW/week
+  (blocks), planned gain capped at 0.5% BW/week (coach caps; manual edits only warn).
+- Sex "other": user picks male/female formula or the average (default average).
+- Health question (medical condition / pregnant / breastfeeding): coach sets no deficit and
+  points to GP; manual deficits allowed with a warning.
+- Injuries: tick-boxes per body area drive exercise swaps; free-text note only triggers the
+  physio message.
+- Fat-loss default 0.5% BW/week; muscle gain default 0.25%/week; recomp 10% deficit;
+  strength/maintain/general fitness at maintenance. Protein 1.6–2.0 g/kg by goal, based on
+  the weight at BMI 27 if heavier. Fat ≥ 25% kcal and ≥ 0.6 g/kg; carbs fill the rest.
+- Home equipment = dumbbells, a bench and a pull-up bar.
+- Open Food Facts (Phase 2): search on button press (rate limit ~10/min); browsers can't
   set User-Agent, so identify the app via an allowed header on web.
 - Charts (Phase 3): likely `react-native-gifted-charts`; confirm before adding.
 
 ## Status
 
-**Current phase: 0 (Setup) - built, awaiting user confirmation on laptop.**
+**Current phase: 1 (Onboarding, targets, starting plan) - built, PR open, awaiting user
+confirmation on laptop.** Phase 0 confirmed and merged.
 
-Phase 0 done:
-- Expo app (TypeScript, Expo Router), trimmed of template examples.
-- Data layer: KeyValueStore (AsyncStorage + in-memory), generic
-  collection Repository with soft delete and per-user scoping, Settings record.
-- Units: kg / lb / st+lb conversion and formatting.
-- Home screen placeholder with a persisted weight-unit toggle.
-- Jest set up; tests for units and repository.
+Phase 1 done:
+- Onboarding questionnaire (4 steps), 18+ check, health question, redo with pre-fill.
+- Target calculation with explanations; safety module; manual edit with live checks.
+- Plan generator (full body / upper-lower / PPL+UL / PPL), injuries and equipment aware.
+- CoachProvider + RuleBasedCoach; approval workflow; coach_events log.
+- Screens: home, onboarding, targets, plan. Unit tests for all logic (92 tests).
 
-Next (Phase 1): onboarding questionnaire, target calculation (Mifflin-St Jeor),
-starting training plan, CoachProvider interface, coach_events.
+Not in Phase 1 (by design): editing the *active* plan (redo onboarding for a new one),
+rejecting targets (edit instead).
+
+Next (Phase 2): food logging - Open Food Facts search + barcode number lookup (mocked in
+tests), manual/custom foods and meals, recents/favourites, Today screen vs targets, copy
+yesterday, edit/delete entries, attribution.
